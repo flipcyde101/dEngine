@@ -233,11 +233,12 @@ def test_class_report_rejects_incomplete_or_invalid_scores(matched_class_scores,
         summarize_classes(matched_class_scores)
 
 
-def test_saved_class_report_has_provenance_and_readable_unadjusted_intervals(matched_class_scores, tmp_path):
+def test_saved_class_report_has_provenance_and_readable_unadjusted_intervals(matched_class_scores, tmp_path, monkeypatch):
     import json
     from hashlib import sha256
     from examples.MoERobustness.followup.class_report import main
 
+    monkeypatch.chdir(tmp_path)
     source = tmp_path / "study-results.json"
     source.write_text(json.dumps({"matched_comparisons": matched_class_scores}), encoding="utf-8")
     original = source.read_bytes()
@@ -259,10 +260,11 @@ def test_saved_class_report_has_provenance_and_readable_unadjusted_intervals(mat
         main([str(source), str(output)])
 
 
-def test_invalid_saved_scores_are_rejected_before_creating_output(matched_class_scores, tmp_path):
+def test_invalid_saved_scores_are_rejected_before_creating_output(matched_class_scores, tmp_path, monkeypatch):
     import json
     from examples.MoERobustness.followup.class_report import main
 
+    monkeypatch.chdir(tmp_path)
     source = tmp_path / "incomplete.json"
     source.write_text(json.dumps({"matched_comparisons": matched_class_scores[:-1]}), encoding="utf-8")
     output = tmp_path / "must-not-exist"
