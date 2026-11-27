@@ -110,7 +110,17 @@ Once installed, dEngine also exposes a console entry point:
 dengine-simulate --config <your_config.yml> --gpu 0 --output_directory logs/
 ```
 
-Run `dengine-simulate --help` (or `python main.py --help` from an example) to see all CLI options, including `--sanity_check` to validate a config without running it, `--seed`, `--dataset_directory`, and `--resume_checkpoints`.
+Run `dengine-simulate --help` (or `python main.py --help` from an example) to see all CLI options. Use `--sanity_check` to load the engine and datasets and skip training.
+
+### Check a configuration before a run
+
+Use `dengine-validate` to check a configuration without loading datasets, importing custom experiment components, or creating run files.
+
+```sh
+dengine-validate --config examples/HelloWorld/config.yml --set seed=92
+```
+
+From a source checkout, you can also use `python -m dengine.bin.validate_config`. List YAML files in load order and repeat `--set KEY=VALUE` to apply dotted overrides. Validation uses the simulator's YAML loader and checks the required fields and types in the combined configuration. Exit status `0` means the schema passed, `1` means the configuration failed, and `2` signals invalid command usage. Component availability and component-specific arguments are checked during engine setup.
 
 ### Record and verify a run setup
 
