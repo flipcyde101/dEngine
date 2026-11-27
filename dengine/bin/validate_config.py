@@ -1,7 +1,7 @@
 """Check the experiment configuration schema without preparing a run."""
 
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 
 from omegaconf import OmegaConf
 from omegaconf.errors import OmegaConfBaseException
@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         files = resolve_config_files(args.config)
-    except ValueError as error:
+    except (ValueError, ArgumentTypeError) as error:
         print(error, file=sys.stderr)
         return 1
 
