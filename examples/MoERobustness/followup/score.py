@@ -34,9 +34,31 @@ def interval(values):
     return {"mean_pp": middle, "low_pp": middle - half, "high_pp": middle + half, "df": df}
 
 
+def verify_provider(config, provider):
+    for field in ("serviceAccount", "timeout", "queueTtl"):
+        if provider.get(field) != config[field]:
+            raise ValueError(f"Build request differs in {field}")
+    if set(provider["tags"]) != set(config["tags"]):
+        raise ValueError("Build tags differ from request")
+    if any(provider["options"].get(key) != value for key, value in config["options"].items()):
+        raise ValueError("Build machine or logging differs from request")
+    if provider["options"].get("pool") or len(provider["steps"]) != len(config["steps"]):
+        raise ValueError("Unexpected pool or extra build step")
+    for expected, observed in zip(config["steps"], provider["steps"]):
+        if any(expected[key] != observed.get(key) for key in ("id", "name", "entrypoint")):
+            raise ValueError("Unexpected build step")
+        args = [arg.replace("$$", "$") for arg in expected["args"]]
+        if observed.get("args") != args:
+            raise ValueError("Build arguments differ from request")
+
+
 def verified_job(lab, job, source):
     key = job["name"]
     provider = read_json(lab / f"{key}-provider.json")
+    config = lab / job["config"]
+    if file_digest(config) != job["config_sha256"]:
+        raise ValueError(f"Reviewed configuration fingerprint changed for {key}")
+    verify_provider(read_json(config), provider)
     archive = lab / f"{key}-receipt"
     reassembly = read_json(archive / "reassembly.json")
     worker = read_json(archive / "outputs" / "worker.json")
@@ -64,6 +86,38 @@ def verified_job(lab, job, source):
     return provider["id"], archive / "outputs" / "cases", starts, worker
 
 
+def qualification(lab, packet, source):
+    jobs = [job for job in packet["jobs"] if job["kind"] == "qualify"]
+    if {job["name"] for job in jobs} != {"qualify-a", "qualify-b"} or len(jobs) != 2:
+        raise ValueError("Require the two planned qualification runs")
+    observed, build_ids = [], []
+    for job in jobs:
+        provider, folder, starts, _ = verified_job(lab, job, source)
+        records = verify_start(folder, job["cohort"], job["cohort_sha256"], starts[0], source)
+        build_ids.append(provider)
+        observed.append(records)
+    if build_ids[0] == build_ids[1]:
+        raise ValueError("Duplicate qualification receipt")
+    differences, equal_weights = [], 0
+    for arm in ARMS:
+        left, right = (records[arm] for records in observed)
+        for key in ("case", "cohort_sha256", "initial_shared", "initial_model", "batch_order"):
+            if left[key] != right[key]:
+                raise ValueError("Qualification replay has different inputs or initialization")
+        equal_weights += left["final_model"] == right["final_model"]
+        a, b = left["validation"], right["validation"]
+        differences.extend((abs(a["macro_f1"] - b["macro_f1"]), abs(a["f1"][4] - b["f1"][4])))
+    maximum = 100 * max(differences)
+    if maximum > .5:
+        raise ValueError("Qualification development F1 replay exceeds the 0.5 point tolerance")
+    return {
+        "passed": True, "build_ids": build_ids, "replayed_fits": len(ARMS), "equal_model_arrays": equal_weights,
+        "max_replay_development_f1_difference_pp": maximum,
+        "cpu_models": [records["dense-clean"]["runtime"]["cpu_model"] for records in observed],
+        "source_commit": source["commit"]
+    }
+
+
 def verified_matrix(lab, sealed_dir):
     packet = read_json(lab / "packet.json")
     design = read_json(sealed_dir / "study.json")
@@ -72,6 +126,7 @@ def verified_matrix(lab, sealed_dir):
             or file_digest(sealed_dir / "study.json") != packet["study_sha256"]
             or file_digest(PROTOCOL_PATH) != design["protocol_sha256"]):
         raise ValueError("Study, run packet or evaluator source differs from the frozen design")
+    checks = qualification(lab, packet, source)
     rows, builds, cohorts = {}, set(), {}
     for item in design["cohorts"]:
         path = sealed_dir / item["file"]
@@ -86,7 +141,7 @@ def verified_matrix(lab, sealed_dir):
         if job["cohort_sha256"] != cohort_sha:
             raise ValueError("Provider job differs from its planned cohort")
         provider, folder, starts, _ = verified_job(lab, job, source)
-        if provider in builds:
+        if provider in builds or provider in checks["build_ids"]:
             raise ValueError("Duplicated provider receipt")
         builds.add(provider)
         for start in starts:
@@ -98,7 +153,7 @@ def verified_matrix(lab, sealed_dir):
                 for slot in range(1, SPEC["starts_per_cohort"] + 1)}
     if set(rows) != expected or sum(len(records) for _, records in rows.values()) != N_CASES:
         raise ValueError("Study matrix is incomplete")
-    return design, source, cohorts, rows, builds
+    return design, source, cohorts, rows, builds, checks
 
 
 def open_holdout(sealed_dir, design, cohorts):
@@ -190,7 +245,7 @@ def sensitivity(cohort_means, test_y, cases, guesses):
 
 
 def score(lab, sealed_dir, out):
-    design, source, cohorts, matrix, builds = verified_matrix(lab, sealed_dir)
+    design, source, cohorts, matrix, builds, checks = verified_matrix(lab, sealed_dir)
     print(f"FOLLOWUP_EVALUATION_AUTHORIZED_BY_MATRIX {len(matrix)} matches", flush=True)
     ids, images, labels = open_holdout(sealed_dir, design, cohorts)
     torch.set_num_threads(2)
@@ -236,6 +291,7 @@ def score(lab, sealed_dir, out):
         "feasibility_flags": dict(flagged), "sensitivity": sensitivity(grouped, labels, cases, stacked),
         "holdout_sha256": design["evaluation_sha256"], "predictions_sha256": file_digest(raw),
         "source": source, "scoring_runtime": environment(), "verified_study_builds": sorted(builds),
+        "qualification_replay": checks,
         "matched_comparisons": report,
     })
     print(f"FOLLOWUP_SCORE_COMPLETE {len(cases)} fits", flush=True)
@@ -246,7 +302,17 @@ def main():
     parser.add_argument("lab", type=Path)
     parser.add_argument("sealed_design", type=Path)
     parser.add_argument("out", type=Path)
+    parser.add_argument("--qualification-only", action="store_true")
     args = parser.parse_args()
+    if args.qualification_only:
+        packet = read_json(args.lab / "packet.json")
+        source = source_state("pilot")
+        if source["commit"] != packet["commit"] or source["tree"] != packet["tree"]:
+            raise ValueError("Qualification source differs from the reviewed run packet")
+        report = qualification(args.lab, packet, source)
+        write_json(args.out, report)
+        print(report)
+        return
     score(args.lab, args.sealed_design, args.out)
 
 
