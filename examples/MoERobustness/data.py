@@ -11,6 +11,8 @@ import numpy as np
 
 SPEC_PATH = Path(__file__).with_name("protocol.json")
 SPEC = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
+COHORT_PATH = Path(__file__).with_name("cohort-hashes.json")
+EXPECTED_COHORT = json.loads(COHORT_PATH.read_text(encoding="utf-8"))
 
 
 def digest(payload):
@@ -52,6 +54,21 @@ class Cohort:
     proxy: np.ndarray
     pairs: np.ndarray
     proxy_positions: np.ndarray
+
+
+def fingerprints(cohort, test_pixels, test_labels):
+    size = len(cohort.train_ids)
+    return {
+        "train_ids_sha256": array_digest(cohort.train_ids),
+        "val_ids_sha256": array_digest(cohort.val_ids),
+        "train_val_labels_sha256": array_digest(cohort.labels),
+        "validation_pixels_sha256": array_digest(cohort.clean[size:]),
+        "test_pixels_sha256": array_digest(test_pixels),
+        "test_labels_sha256": array_digest(test_labels),
+        "proxy_pairs_sha256": array_digest(cohort.pairs),
+        "train_clean_sha256": array_digest(cohort.clean[:size]),
+        "train_proxy_sha256": array_digest(cohort.proxy[:size]),
+    }
 
 
 def make_cohort(pixels, labels, train_per_digit=None, val_per_digit=None):
