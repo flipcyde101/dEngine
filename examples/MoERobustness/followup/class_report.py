@@ -8,7 +8,7 @@ from statistics import mean, stdev
 
 from scipy.stats import t
 
-from _dengine_cli_paths import cli_input_path, cli_output_path
+from _dengine_cli_paths import cli_input_path, cli_output_path, create_output_directory, read_input_bytes
 
 from .design import ARMS, SPEC, write_json
 
@@ -102,13 +102,13 @@ def main(argv=None):
     parser.add_argument("results", type=cli_input_path, help="Existing study-results.json")
     parser.add_argument("out", type=cli_output_path, help="Fresh directory for the secondary report")
     args = parser.parse_args(argv)
-    raw = args.results.read_bytes()
+    raw = read_input_bytes(args.results)
     record = json.loads(raw)
     if not isinstance(record, dict):
         raise ValueError("Expected a study result object")
     result = summarize_classes(record.get("matched_comparisons"))
     result["input_results_sha256"] = sha256(raw).hexdigest()
-    args.out.mkdir(parents=True, exist_ok=False)
+    args.out = create_output_directory(args.out)
     write_json(args.out / "class-comparisons.json", result)
     (args.out / "class-comparisons.md").write_text(render_class_report(result), encoding="utf-8")
     print(f"Wrote paired class comparisons to {args.out}")
