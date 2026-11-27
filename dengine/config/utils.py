@@ -7,6 +7,8 @@ import yaml
 import sys
 import importlib
 import inspect
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from types import ModuleType
 from typing import Optional, Type, TypeVar, List, Union, Tuple, Dict, Any
@@ -19,6 +21,18 @@ import dengine
 from .configuration import ExperimentConfiguration, DynamicModuleConfigBase
 
 TT = TypeVar('TT')
+_CONFIGURATION_COMPONENTS = ContextVar("configuration_components", default=None)
+
+
+@contextmanager
+def capture_configuration_components():
+    """Collect the implementations that the current engine setup resolves."""
+    components = []
+    token = _CONFIGURATION_COMPONENTS.set(components)
+    try:
+        yield components
+    finally:
+        _CONFIGURATION_COMPONENTS.reset(token)
 
 
 def convert_to_nested_dict(
@@ -218,6 +232,9 @@ def instantiate_configuration_module(
         )
 
     config_args = config.arguments or {}
+    components = _CONFIGURATION_COMPONENTS.get()
+    if components is not None:
+        components.append((config.target, cls))
     return cls(**config_args, **kwargs)
 
 
