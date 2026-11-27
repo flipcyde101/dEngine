@@ -3,17 +3,16 @@
 import argparse
 from collections import Counter
 from pathlib import Path
-from statistics import mean, median, stdev
-import math
+from statistics import mean, median
 import time
 
 import numpy as np
-from scipy.stats import t
 import torch
 
 from ..data import array_digest
 from ..metrics import class_metrics, evaluate, mean_cross_entropy, routing_counts
 from ..run import environment, source_state, tensor_dataset
+from .class_report import interval, render_class_report, summarize_classes
 from .design import (ARMS, N_CASES, PROTOCOL_PATH, SPEC, case_id, derive_seed, file_digest,
                      interpretation, read_json, starts_for, write_json)
 from .fit import ARCHITECTURES, weights_digest
@@ -24,14 +23,6 @@ def paired_loss(results, reference, specialist):
     def loss(model):
         return results[model + "-clean"]["f1"][4] - results[model + "-proxy"]["f1"][4]
     return 100 * (loss(reference) - loss(specialist))
-
-
-def interval(values):
-    if len(values) < 2 or not all(math.isfinite(value) for value in values):
-        raise ValueError("Require two or more finite cohort means")
-    middle, df = mean(values), len(values) - 1
-    half = float(t.ppf(.975, df) * stdev(values) / math.sqrt(len(values)))
-    return {"mean_pp": middle, "low_pp": middle - half, "high_pp": middle + half, "df": df}
 
 
 def verify_provider(config, provider):
@@ -282,6 +273,7 @@ def score(lab, sealed_dir, out):
                             predicted=stacked, expert=np.asarray(routes, dtype=np.int8))
     all_effects = [row["main_effect_pp"] for row in report]
     flagged = Counter(flag for row in report for flag, state in row["feasibility"]["flags"].items() if state)
+    per_class = summarize_classes(report)
     write_json(out / "study-results.json", {
         "study": SPEC["study"], "scored_fits": len(cases), "cohort_means_pp": grouped,
         "summary": effect, "primary_practical_margin_pp": margin,
@@ -293,7 +285,9 @@ def score(lab, sealed_dir, out):
         "source": source, "scoring_runtime": environment(), "verified_study_builds": sorted(builds),
         "qualification_replay": checks,
         "matched_comparisons": report,
+        "secondary_class_comparisons": per_class,
     })
+    (out / "class-comparisons.md").write_text(render_class_report(per_class), encoding="utf-8")
     print(f"FOLLOWUP_SCORE_COMPLETE {len(cases)} fits", flush=True)
 
 
