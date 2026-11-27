@@ -70,6 +70,7 @@ def run_experiment(tmp_path, monkeypatch):
     }), encoding="utf-8")
     monkeypatch.setenv("MPLBACKEND", "Agg")
     monkeypatch.setenv("PYTHONHASHSEED", "417")
+    monkeypatch.setenv("DENGINE_INPUT_ROOTS", str(tmp_path))
     datasets = tmp_path / "datasets"
     datasets.mkdir()
     existing_figures = set(plt.get_fignums())
