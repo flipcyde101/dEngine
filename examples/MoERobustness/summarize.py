@@ -179,15 +179,17 @@ def summarize(root, seeds):
 
 
 def main(argv=None):
+    from _dengine_cli_paths import cli_input_path, cli_output_path
+
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("runs", type=Path)
-    parser.add_argument("output", type=Path)
+    parser.add_argument("runs", type=cli_input_path)
+    parser.add_argument("output", type=cli_output_path)
     parser.add_argument("--seed", type=int, choices=SPEC["seeds"])
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
     result = summarize(args.runs, [args.seed] if args.seed else SPEC["seeds"])
-    write_json(args.output, result)
+    write_json(args.output, result, exclusive=True)
     return 0 if result["complete"] else 2
 
 
