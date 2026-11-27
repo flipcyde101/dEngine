@@ -4,10 +4,11 @@ import argparse
 from hashlib import sha256
 import json
 import math
-from pathlib import Path
 from statistics import mean, stdev
 
 from scipy.stats import t
+
+from _dengine_cli_paths import cli_input_path, cli_output_path
 
 from .design import ARMS, SPEC, write_json
 
@@ -98,8 +99,8 @@ def render_class_report(result):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("results", type=Path, help="Existing study-results.json")
-    parser.add_argument("out", type=Path, help="Fresh directory for the secondary report")
+    parser.add_argument("results", type=cli_input_path, help="Existing study-results.json")
+    parser.add_argument("out", type=cli_output_path, help="Fresh directory for the secondary report")
     args = parser.parse_args(argv)
     raw = args.results.read_bytes()
     record = json.loads(raw)
