@@ -30,6 +30,21 @@ class SimulationArguments:
     run_manifest: bool = False
 
 
+def resolve_config_files(configs: List[str]) -> List[Path]:
+    config_files = []
+    for filename in configs:
+        path = Path(filename)
+        if path.is_file():
+            config_files.append(path)
+            continue
+        core_config = get_config(path.name)
+        if core_config.is_file():
+            config_files.append(core_config)
+            continue
+        raise ValueError(f'Not found: {path}')
+    return config_files
+
+
 def cli_argument_parser(
     parser: ArgumentParser | None = None
 ) -> Tuple[SimulationArguments, Dict[str, Any]]:
@@ -58,7 +73,7 @@ def cli_argument_parser(
     parser_handler.add_argument(
         '--sanity_check',
         action='store_true',
-        help='Performs a sanity check of the configuration file. No experiment is run'
+        help='Load the experiment setup and skip training'
     )
     parser_handler.add_argument(
         '--run_manifest',
@@ -100,20 +115,9 @@ def cli_argument_parser(
     gpu = [int(x) for x in args.gpu.split(',')]
     verbosity = VerbosityLevel[args.verbosity]
     seed = args.seed if args.seed >= 0 else randint(0, 424242)
-    config_files = []
-
-    for f in args.config:
-        f = Path(f)
-        if f.exists() and f.is_file():
-            config_files.append(f)
-            continue
-        if (core_config := get_config(f.name)).exists() and core_config.is_file():
-            config_files.append(core_config)
-            continue
-        raise ValueError(f'Not found: {f}')
 
     return SimulationArguments(
-        configs=config_files,
+        configs=resolve_config_files(args.config),
         verbosity=verbosity,
         gpus=gpu,
         torch_num_threads=args.torch_num_threads,
