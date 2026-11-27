@@ -8,7 +8,7 @@ import sys
 import torch
 import torchvision
 
-from _dengine_cli_paths import cli_input_path, cli_output_path
+from _dengine_cli_paths import cli_input_path, cli_output_path, create_output_directory
 
 from ..lab.worker import WorkerTask, print_bundle, run_process
 from ..run import source_state
@@ -17,7 +17,7 @@ from .verify import verify_start
 
 
 def run_worker(args):
-    args.output.mkdir(exist_ok=False, parents=True)
+    args.output = create_output_directory(args.output)
     cases = args.output / "cases"
     cases.mkdir()
     source = source_state("pilot")
@@ -44,8 +44,7 @@ def run_worker(args):
             raise ValueError("Invalid match slot")
         if args.kind == "qualify":
             check = run_process(
-                "focused-tests", WorkerTask.TESTS,
-                ["-q", "-p", "no:cacheprovider", "tests/test_moe_followup.py"], 180,
+                "focused-tests", WorkerTask.FOLLOWUP_TESTS, [], 180,
             )
             status["processes"].append(check)
             if check["native_exit"] != 0:
