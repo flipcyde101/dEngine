@@ -27,6 +27,7 @@ class SimulationArguments:
     output_directory: Path
     dump_stdout: bool
     configs: List[Path] = field(default_factory=list)
+    run_manifest: bool = False
 
 
 def cli_argument_parser(
@@ -58,6 +59,11 @@ def cli_argument_parser(
         '--sanity_check',
         action='store_true',
         help='Performs a sanity check of the configuration file. No experiment is run'
+    )
+    parser_handler.add_argument(
+        '--run_manifest',
+        action='store_true',
+        help='Record a replay manifest in a fresh experiment output directory'
     )
     parser_handler.add_argument(
         '--gpu',
@@ -116,5 +122,6 @@ def cli_argument_parser(
         resume_checkpoints=args.resume_checkpoints,
         sanity_check=args.sanity_check,
         output_directory=Path(args.output_directory),
-        dump_stdout=args.dump_stdout
+        dump_stdout=args.dump_stdout,
+        run_manifest=args.run_manifest
     ), overrides
