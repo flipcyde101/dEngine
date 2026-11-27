@@ -14,6 +14,7 @@ from torch.utils.data import Sampler
 from dengine import load_experiment_from_yamls
 from dengine.bin.args_parser import SimulationArguments, VerbosityLevel
 from dengine.bin.simulation import load_engine
+from dengine.dataset import SupervisedDataset
 from dengine.dataset.decorators import register_dataset
 from dengine.models.decorators import register_model
 from dengine.training_strategies.decorators import register_local_training
@@ -110,7 +111,7 @@ def subset(directory):
 
 
 @register_dataset("moe_followup_data")
-def development_data(output_path, experiment_cfg, condition, validation_only=False):
+def development_data(output_path, experiment_cfg, condition, validation_only=False) -> SupervisedDataset:
     images, labels, meta = subset(Path(output_path))
     train_size = len(meta["train_ids"])
     if validation_only:
