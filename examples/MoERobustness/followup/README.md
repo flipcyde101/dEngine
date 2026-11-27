@@ -11,6 +11,8 @@ This study compares the original dense classifier, the original expert classifie
 
 Use the Python 3.13 runtime and the original study's platform-specific hash lock. The local study folder, cloud receipts and new evaluation output belong outside the source checkout. Preserve the committed source, exact cohort manifests, provider and native receipts, saved predictions and any failed attempts.
 
+For a new isolated worker, set `DENGINE_INPUT_ROOTS` to the operator's read-only development subset mount and `DENGINE_OUTPUT_ROOTS` to the approved writable scratch mount, such as `/tmp`. Keep the original source and launch configuration with the archived study.
+
 The primary inference is conditional on this MNIST corpus and pixel-blend setting. Secondary controls and sensitivity checks support interpretation of the primary outcome.
 
 ## Paired class comparisons
@@ -23,4 +25,6 @@ For an already completed study, create the same report from its saved scores in 
 python -m examples.MoERobustness.followup.class_report D:/research/evaluation/study-results.json D:/research/class-report
 ```
 
-Use your own paths for the input and the fresh output directory. The command reads the saved scores, checks the complete matrix of 20 cohorts with 4 starts each and all six arms, and records the input JSON SHA-256 in `class-comparisons.json`. It also writes `class-comparisons.md` and preserves the input file. Existing output directories are rejected. The report uses the supplied scores as a secondary analysis. The original scoring command supplies the training receipt and sealed evaluation checks.
+Use your own paths for the input and the fresh output directory. The command uses the current working directory as its default workspace. For the external paths in the example, set operator-approved `DENGINE_INPUT_ROOTS` and `DENGINE_OUTPUT_ROOTS` before running. See [workspace settings](../../../README.md#try-it-from-a-source-checkout).
+
+The command reads the saved scores, checks the complete matrix of 20 cohorts with 4 starts each and all six arms, and records the input JSON SHA-256 in `class-comparisons.json`. It also writes `class-comparisons.md` and preserves the input file. Existing output directories are rejected. The report uses the supplied scores as a secondary analysis. The original scoring command supplies the training receipt and sealed evaluation checks.
