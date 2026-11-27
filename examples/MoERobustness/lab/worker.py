@@ -100,8 +100,14 @@ def canary(out, dataset, status):
         "modified_training_inputs": len(observed), "test_size": len(test),
         "fingerprints": observed_cohort,
     }
-    receipt = run_process("focused-pytest", [sys.executable, "-B", "-m", "pytest",
-                            "-q", "-p", "no:cacheprovider", "tests/test_moe_robustness.py"], 180)
+    receipt = run_process(
+        "focused-pytest",
+        [
+            sys.executable, "-B", "-m", "pytest", "-q", "-p",
+            "no:cacheprovider", "tests/test_moe_robustness.py",
+        ],
+        180,
+    )
     status["processes"].append(receipt)
     if receipt["native_exit"] != 0:
         return 124 if receipt["timed_out"] else receipt["native_exit"]
