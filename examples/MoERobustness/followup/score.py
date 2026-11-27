@@ -2,12 +2,13 @@
 
 import argparse
 from collections import Counter
-from pathlib import Path
 from statistics import mean, median
 import time
 
 import numpy as np
 import torch
+
+from _dengine_cli_paths import cli_input_path, cli_output_path
 
 from ..data import array_digest
 from ..metrics import class_metrics, evaluate, mean_cross_entropy, routing_counts
@@ -293,9 +294,9 @@ def score(lab, sealed_dir, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("lab", type=Path)
-    parser.add_argument("sealed_design", type=Path)
-    parser.add_argument("out", type=Path)
+    parser.add_argument("lab", type=cli_input_path)
+    parser.add_argument("sealed_design", type=cli_input_path)
+    parser.add_argument("out", type=cli_output_path)
     parser.add_argument("--qualification-only", action="store_true")
     args = parser.parse_args()
     if args.qualification_only:
