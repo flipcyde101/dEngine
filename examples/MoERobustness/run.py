@@ -189,8 +189,10 @@ def main(argv=None):
     parser.add_argument("--arch", required=True, choices=("dense", "moe"))
     parser.add_argument("--data", required=True, choices=("clean", "proxy"))
     parser.add_argument("--seed", required=True, type=int, choices=SPEC["seeds"])
-    parser.add_argument("--dataset-dir", required=True, type=Path)
-    parser.add_argument("--output-dir", required=True, type=Path)
+    from _dengine_cli_paths import cli_input_path, cli_output_path
+
+    parser.add_argument("--dataset-dir", required=True, type=cli_input_path)
+    parser.add_argument("--output-dir", required=True, type=cli_output_path)
     args = parser.parse_args(argv)
     args.dataset_dir = args.dataset_dir.resolve()
     out = args.output_dir.resolve()
