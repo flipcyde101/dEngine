@@ -65,6 +65,13 @@ def create_output_directory(value):
     return path
 
 
+def write_output_text(value, text, *, exclusive=False):
+    """Write UTF-8 text to an approved output workspace."""
+    path = cli_output_path(value)
+    with path.open("x" if exclusive else "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
 def contained_file(directory, name):
     """Return a regular file in a known directory without following it outside."""
     root = Path(directory).resolve()
