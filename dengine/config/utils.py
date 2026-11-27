@@ -53,6 +53,10 @@ def convert_to_nested_dict(
 _ENV_RE = re.compile(r'\$(\w+)|\$\{(\w+)\}')
 
 
+class ConfigurationInputError(ValueError):
+    """Configuration input that could not be read or combined."""
+
+
 def _expand_env_in_str(s: str) -> Any:
     m = _ENV_RE.match(s)
     if not m:
@@ -60,9 +64,13 @@ def _expand_env_in_str(s: str) -> Any:
     env_var_name = m.group(1) or m.group(2)
     env_value = os.environ.get(env_var_name, None)
     if not env_value:
-        raise ValueError(f"❌ {env_var_name} is missing. Please define it via an environment variable.")
-    casted_env_value = ast.literal_eval(env_value)
-    return casted_env_value
+        raise ConfigurationInputError(f"Missing environment variable {env_var_name}.")
+    try:
+        return ast.literal_eval(env_value)
+    except (SyntaxError, ValueError):
+        raise ConfigurationInputError(
+            f"Environment variable {env_var_name} must contain a Python literal."
+        ) from None
 
 
 def replace_env_variables(data: Any) -> Any:
@@ -103,11 +111,20 @@ def load_experiment_from_yamls(
     for f in files:
         with open(f, 'r') as content:
             logging.info(f'Overwriting configuration with: {f}')
-            data = yaml.safe_load(content)
-            data = replace_env_variables(data)
-            config.update(data)
-            name = data['name'] if 'name' in data else f.stem
-            exp_name.append(name)
+            try:
+                data = yaml.safe_load(content)
+            except yaml.YAMLError as error:
+                mark = getattr(error, "problem_mark", None)
+                location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+                raise ConfigurationInputError(f"Malformed YAML in {f}{location}.") from None
+        if not isinstance(data, dict):
+            raise ConfigurationInputError(f"Expected a YAML mapping in {f}.")
+        if any(not isinstance(key, str) for key in data):
+            raise ConfigurationInputError(f"Expected string keys in the YAML mapping in {f}.")
+        data = replace_env_variables(data)
+        config.update(data)
+        name = data['name'] if 'name' in data else f.stem
+        exp_name.append(name)
 
     if ("seed" in config) and ("seed" in kwargs):
         del kwargs["seed"]
