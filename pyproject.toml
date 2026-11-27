@@ -51,4 +51,5 @@ include = ["dengine*"]
 
 [project.scripts]
 dengine-simulate = "dengine.bin.simulation:_cli"
+dengine-validate = "dengine.bin.validate_config:main"
 dengine-serve = "dengine.bin.serve:_main"
