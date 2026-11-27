@@ -82,6 +82,13 @@ def test_confusion_and_collateral_f1():
     assert summary["bystander_macro_f1"] == 0
 
 
+def test_cross_entropy_is_stable_for_shifted_logits():
+    from examples.MoERobustness.metrics import mean_cross_entropy
+
+    equal = np.full((2, 10), 1000.0, dtype=np.float32)
+    assert mean_cross_entropy(np.array([4, 9]), equal) == pytest.approx(np.log(10))
+
+
 def test_smoke_runs_normal_entrypoint_and_preserves_outputs(tmp_path):
     from examples.MoERobustness.run import main
 
@@ -96,6 +103,8 @@ def test_smoke_runs_normal_entrypoint_and_preserves_outputs(tmp_path):
     assert metrics["train"]["examples"] == 100
     assert metrics["validation"]["examples"] == 50
     assert metrics["test"]["examples"] == 80
+    assert metrics["test"]["cross_entropy"] > 0
+    assert metrics["validation"]["cross_entropy"] < metrics["initial_validation"]["cross_entropy"]
     assert len(metrics["diagnostic"]["assignment_counts"]) == 4
     assert len((out / "metrics.jsonl").read_text().splitlines()) == 1
     with np.load(out / "predictions.npz", allow_pickle=False) as predictions:

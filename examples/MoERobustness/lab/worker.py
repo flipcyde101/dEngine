@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import torchvision
 
-from ..data import SPEC, array_digest, make_cohort, read_mnist
+from ..data import EXPECTED_COHORT, SPEC, fingerprints, make_cohort, read_mnist
 from ..metrics import write_json
 from ..summarize import summarize
 
@@ -30,14 +30,18 @@ def run_process(label, argv, timeout, seed=None):
     env = {**os.environ, "PYTHONHASHSEED": str(seed if seed is not None else 11)}
     print(f"DENGINE_START {label} {datetime.now(timezone.utc).isoformat()}", flush=True)
     start = time.monotonic()
+    timed_out = False
     try:
         result = subprocess.run(argv, env=env, timeout=timeout, check=False)
         code = result.returncode
     except subprocess.TimeoutExpired:
-        code = 124
+        code = None
+        timed_out = True
     duration = time.monotonic() - start
-    print(f"DENGINE_PROCESS_EXIT {label} {code} {duration:.3f}s", flush=True)
-    return {"label": label, "native_exit": code, "elapsed_s": duration}
+    print(f"DENGINE_PROCESS_EXIT {label} {code} timed_out={timed_out} {duration:.3f}s",
+          flush=True)
+    return {"label": label, "native_exit": code, "timed_out": timed_out,
+            "elapsed_s": duration}
 
 
 def cell(mode, seed, arch, condition, directory, dataset):
@@ -46,7 +50,7 @@ def cell(mode, seed, arch, condition, directory, dataset):
         [sys.executable, "-Bu", "-m", "examples.MoERobustness.run", "--mode", mode,
          "--arch", arch, "--data", condition, "--seed", str(seed), "--dataset-dir",
          str(dataset), "--output-dir", str(directory)],
-        timeout=420 if mode == "pilot" else 120, seed=seed,
+        timeout=330 if mode == "pilot" else 120, seed=seed,
     )
 
 
@@ -88,31 +92,37 @@ def canary(out, dataset, status):
         raise ValueError("Changed MNIST inputs differ from the frozen training cohort")
     if len(cohort.pairs) != 300 or test.shape != (10000, 28, 28):
         raise ValueError("Unexpected pilot data cardinalities")
+    observed_cohort = fingerprints(cohort, test, test_labels)
+    if observed_cohort != EXPECTED_COHORT:
+        raise ValueError("The worker did not reconstruct the frozen cohort")
     status["mnist"] = {
         "train_size": len(cohort.train_ids), "validation_size": len(cohort.val_ids),
         "modified_training_inputs": len(observed), "test_size": len(test),
-        "train_ids_sha256": array_digest(cohort.train_ids),
-        "validation_ids_sha256": array_digest(cohort.val_ids),
-        "proxy_pairs_sha256": array_digest(cohort.pairs),
-        "test_labels_sha256": array_digest(test_labels),
+        "fingerprints": observed_cohort,
     }
     receipt = run_process("focused-pytest", [sys.executable, "-B", "-m", "pytest",
                             "-q", "-p", "no:cacheprovider", "tests/test_moe_robustness.py"], 180)
     status["processes"].append(receipt)
     if receipt["native_exit"] != 0:
-        return receipt["native_exit"]
+        return 124 if receipt["timed_out"] else receipt["native_exit"]
 
     for name in ("replay-a", "replay-b"):
         receipt = cell("smoke", 11, "moe", "proxy", out / name, dataset)
         status["processes"].append(receipt)
         if receipt["native_exit"] != 0:
-            return receipt["native_exit"]
+            return 124 if receipt["timed_out"] else receipt["native_exit"]
     for file in ("predictions.npz", "weights.npz"):
         with (np.load(out / "replay-a" / file, allow_pickle=False) as left,
               np.load(out / "replay-b" / file, allow_pickle=False) as right):
             if left.files != right.files or any(not np.array_equal(left[k], right[k]) for k in left.files):
                 raise ValueError(f"Same-worker synthetic replay differs for {file}")
     status["deterministic_synthetic_replay"] = "bitwise equal arrays"
+    metrics = json.loads((out / "replay-a" / "summary.json").read_text(encoding="utf-8"))
+    initial = metrics["initial_validation"]["cross_entropy"]
+    final = metrics["validation"]["cross_entropy"]
+    status["synthetic_learning"] = {"initial_cross_entropy": initial, "final_cross_entropy": final}
+    if final >= initial:
+        raise ValueError("Synthetic learning check did not reduce validation loss")
     return 0
 
 
@@ -150,7 +160,7 @@ def main(argv=None):
                                out / f"seed-{args.seed}-{arch}-{condition}", args.dataset_dir)
                 status["processes"].append(receipt)
                 if receipt["native_exit"] != 0:
-                    code = receipt["native_exit"]
+                    code = 124 if receipt["timed_out"] else receipt["native_exit"]
                     break
             print(f"DENGINE_PROGRESS {sum(r['native_exit'] == 0 for r in status['processes'])}"
                   "/4 cells complete, validating and archiving outputs", flush=True)
