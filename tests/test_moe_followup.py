@@ -77,6 +77,13 @@ def test_recorded_sampler_measures_the_order_consumed():
     assert recorded.epochs[0]["order_sha256"] != other.epochs[0]["order_sha256"]
 
 
+def test_development_factory_declares_the_type_required_by_dengine():
+    from dengine.dataset import SupervisedDataset
+    from examples.MoERobustness.followup.fit import development_data
+
+    assert development_data.__annotations__["return"] is SupervisedDataset
+
+
 def test_rejects_hidden_mismatch_in_matched_conditions():
     from examples.MoERobustness.followup.verify import verify_pairing
 
