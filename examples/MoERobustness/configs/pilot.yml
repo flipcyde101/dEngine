@@ -1,0 +1,22 @@
+graph:
+  target: NXGraph
+  arguments:
+    nx_class: complete_graph
+    n: 1
+scenario:
+  target: CentralizedScenarioEngine
+dataset:
+  train:
+    target: moe_pilot_train
+  test:
+    target: moe_pilot_test
+partitioning:
+  target: moe_pilot_partition
+client:
+  target: CentralizedClient
+  training_engine:
+    target: PilotTrainingEngine
+  local_model:
+    target: DenseDigitClassifier
+callbacks:
+  - target: PilotMetrics
