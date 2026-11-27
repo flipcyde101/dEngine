@@ -11,7 +11,7 @@ import torch
 from torch import nn
 from torch.utils.data import Sampler
 
-from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file
+from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file, create_output_directory
 
 from dengine import load_experiment_from_yamls
 from dengine.bin.args_parser import SimulationArguments, VerbosityLevel
@@ -208,15 +208,15 @@ def fit(directory, cohort_sha, slot, arm, out):
     })
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=cli_input_path)
     parser.add_argument("cohort_sha")
     parser.add_argument("slot", type=int)
     parser.add_argument("arm", choices=ARMS)
     parser.add_argument("out", type=cli_output_path)
-    args = parser.parse_args()
-    args.out.mkdir(exist_ok=False, parents=True)
+    args = parser.parse_args(argv)
+    args.out = create_output_directory(args.out)
     fit(args.directory, args.cohort_sha, args.slot, args.arm, args.out)
 
 
