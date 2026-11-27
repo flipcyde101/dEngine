@@ -207,7 +207,7 @@ def write_run_manifest(
         ]})
         graph_artifacts = [topology]
     names = sorted(path.relative_to(output).as_posix() for path in [*artifacts, *graph_artifacts, indices_path])
-    seed, config_digest = _configuration_identity(root / CONFIG_NAME)
+    seed, config_digest = _configuration_identity(_artifact_path(root, CONFIG_NAME))
     record = {
         "schema_version": SCHEMA_VERSION,
         "seed": seed,
@@ -299,7 +299,7 @@ def verify_run_manifest(manifest: Path) -> dict:
     """Verify the recorded files relative to the manifest directory."""
     manifest = Path(manifest)
     root = manifest.parent.resolve()
-    record = json.loads(manifest.read_text(encoding="utf-8"))
+    record = json.loads(_artifact_path(root, manifest.name).read_text(encoding="utf-8"))
     schema = record.get("schema_version") if isinstance(record, dict) else None
     if not isinstance(schema, int) or isinstance(schema, bool):
         raise ValueError(f"Missing or invalid manifest schema version in {manifest}")
@@ -338,9 +338,11 @@ def compare_run_manifests(original: Path, replay: Path) -> None:
 
 
 def main():
+    from _dengine_cli_paths import cli_input_path
+
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
-    parser.add_argument("--compare", type=Path, help="Verify and compare a replay manifest")
+    parser.add_argument("manifest", type=cli_input_path)
+    parser.add_argument("--compare", type=cli_input_path, help="Verify and compare a replay manifest")
     args = parser.parse_args()
     try:
         if args.compare:
