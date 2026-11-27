@@ -132,6 +132,7 @@ def read_mnist(path):
 def fixture():
     rng = np.random.Generator(np.random.PCG64(104))
     # This dataset qualifies plumbing only. Its scores never enter the pilot.
+
     def partition(size):
         labels = np.repeat(np.arange(10, dtype=np.uint8), size)
         pixels = rng.integers(0, 40, (len(labels), 28, 28), dtype=np.uint8)
