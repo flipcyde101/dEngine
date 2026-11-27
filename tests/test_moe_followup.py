@@ -113,3 +113,18 @@ def test_pair_loss_sign_and_interval_use_cohort_observations():
     assert result["mean_pp"] == 2
     assert result["low_pp"] < 0 < 4 < result["high_pp"]
     assert result["df"] == 2
+
+
+def test_provider_must_execute_the_reviewed_arguments():
+    from copy import deepcopy
+    from examples.MoERobustness.followup.score import verify_provider
+
+    configuration = {"serviceAccount": "restricted", "timeout": "600s", "queueTtl": "300s",
+                     "tags": ["one"], "options": {"machineType": "E2_STANDARD_2"},
+                     "steps": [{"id": "step", "name": "image", "entrypoint": "sh", "args": ["$$HOME"]}]}
+    observed = deepcopy(configuration)
+    observed["steps"][0]["args"] = ["$HOME"]
+    verify_provider(configuration, observed)
+    observed["steps"][0]["args"] = ["$PATH"]
+    with pytest.raises(ValueError, match="arguments"):
+        verify_provider(configuration, observed)
