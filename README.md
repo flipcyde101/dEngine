@@ -28,6 +28,8 @@ python -m examples.RunManifest.run --config examples/RunManifest/config.yml --ou
 
 The first dEngine command checks the config. The second runs one communication round with two clients and synthetic data, then leaves a manifest in the run directory. Use a fresh output path for each run. See [how to replay and compare the setup](#record-and-verify-a-run-setup).
 
+The validator, manifest verifier, and MNIST research commands resolve file arguments within the current working directory by default. For files elsewhere, the operator can set `DENGINE_INPUT_ROOTS` and `DENGINE_OUTPUT_ROOTS` to absolute workspace directories. Separate multiple entries with the platform's path separator (`:` on Linux or `;` on Windows). Each setting replaces the default for its role. Use directories controlled by the operator. Keep these environment settings and the working directory fixed when exposing a command to automation.
+
 For the MNIST study, see the [paired report instructions](examples/MoERobustness/followup/README.md#paired-class-comparisons). The reporter reads saved study scores and writes JSON and Markdown to a fresh output directory. The class comparisons are exploratory. Digit 4 remains the study's primary outcome.
 
 > [!NOTE]
