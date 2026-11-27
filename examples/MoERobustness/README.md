@@ -15,10 +15,10 @@ Use Python 3.13 and the platform's hash-locked environment. The source checkout 
 ```text
 python -m pip install --require-hashes --only-binary=:all: -r examples/MoERobustness/lab/linux.lock
 python -m pytest -q -p no:cacheprovider tests/test_moe_robustness.py
-python -m examples.MoERobustness.run --mode smoke --arch moe --data proxy --seed 11 --dataset-dir ./unused --output-dir ../dengine-smoke
+python -m examples.MoERobustness.run --mode smoke --arch moe --data proxy --seed 11 --dataset-dir ./unused --output-dir ./logs/dengine-smoke
 ```
 
-Use `windows.lock` for Windows. Smoke mode uses a generated fixture. It qualifies code behavior and never contributes research results. Pilot mode requires the four verified IDX files and a clean checkout. Run each of the four dense/MoE × clean/proxy arms in a separate process for each of seeds 11, 29 and 47. Use a new output directory per cell.
+Use `windows.lock` for Windows. Smoke mode uses a generated fixture. It qualifies code behavior and never contributes research results. Pilot mode requires the four verified IDX files and a clean checkout. Run each of the four dense/MoE × clean/proxy arms in a separate process for each of seeds 11, 29 and 47. Use a new output directory per cell. Before running the example below, set `DENGINE_INPUT_ROOTS` to the absolute path of the existing MNIST directory and `DENGINE_OUTPUT_ROOTS` to the absolute path of the existing results directory.
 
 ```text
 python -m examples.MoERobustness.run --mode pilot --arch moe --data proxy --seed 11 --dataset-dir ../mnist --output-dir ../results/seed-11-moe-proxy
@@ -26,5 +26,7 @@ python -m examples.MoERobustness.summarize ../results ../paired-results.json
 ```
 
 The summary reports missing or invalid cells. The primary effect is the dense model's class-4 F1 loss minus the MoE's class-4 F1 loss, both measured against each architecture's own clean-trained control. Display each paired effect. Interpret the median and range as exploratory observations conditional on this dataset and these implementations. Report feasibility failures before interpreting the comparison.
+
+For a new isolated worker with its checkout at `/study`, a read-only MNIST mount at `/mnist`, and generated output under `/tmp/experiment`, set `DENGINE_INPUT_ROOTS=/mnist` and `DENGINE_OUTPUT_ROOTS=/tmp` in the operator's container configuration. Retain the original worker configuration and source revision when verifying archived study results.
 
 Read the raw predictions and weights using NumPy with `allow_pickle=False`. The final epoch, five fixed epochs for the pilot, is the only test checkpoint. The same minimum validation and route-load rules apply to all three seeds. Record code revisions, dataset hashes, the exact environment and every attempt when preparing a research report. [Reproducibility notes](https://docs.pytorch.org/docs/stable/notes/randomness.html).
