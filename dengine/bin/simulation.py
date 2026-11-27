@@ -14,6 +14,7 @@ from dengine.config import (
     instantiate_configuration_module,
     ExperimentConfiguration
 )
+from dengine.config.utils import capture_configuration_components
 from dengine import dataset
 
 from dengine.dataset.decorators import BUILTIN_DATASETS
@@ -44,13 +45,38 @@ def load_engine(
     engine: ScenarioEventEngine[GenericClient] | None = None,
     verbose: bool = True
 ):
+    if not args.run_manifest:
+        return _prepare_engine(args, experiment_cfg, engine, verbose)
+    with capture_configuration_components() as components:
+        if engine is not None:
+            components.append(("provided_engine", type(engine)))
+        return _prepare_engine(args, experiment_cfg, engine, verbose, components)
+
+
+def _prepare_engine(
+    args: SimulationArguments,
+    experiment_cfg: ExperimentConfiguration,
+    engine: ScenarioEventEngine[GenericClient] | None,
+    verbose: bool,
+    components: list[tuple[str, object]] | None = None
+):
+    output_directory = experiment_cfg.output_directory
+    if args.run_manifest:
+        try:
+            output_directory.mkdir(parents=True)
+        except FileExistsError as error:
+            raise FileExistsError(f"A run manifest needs a fresh output directory: {output_directory}") from error
+
     torch.set_num_threads(args.torch_num_threads)
 
     # 1. Initialization and global configurations
     seed_everything(experiment_cfg.seed)
 
-    experiment_cfg.output_directory.mkdir(parents=True, exist_ok=True)
-    with open(experiment_cfg.output_directory / 'config.yaml', 'w') as f:
+    if not args.run_manifest:
+        output_directory.mkdir(parents=True, exist_ok=True)
+    config_path = output_directory / 'config.yaml'
+    artifacts = [config_path]
+    with open(config_path, 'w') as f:
         d = experiment_cfg.model_dump()
         yaml.safe_dump(d, f)
 
@@ -112,17 +138,13 @@ def load_engine(
                 f"# {partitioning_cfg.target} \n"
                 f"{partitions_report(dataset_train, partitions)}"
             )
-        dump_partition(
-            experiment_cfg.partitions_output_directory / f'{i}.{partitioning_cfg.target}.csv',
-            dataset_train,
-            partitions
-        )
+        partition_path = experiment_cfg.partitions_output_directory / f'{i}.{partitioning_cfg.target}.csv'
+        dump_partition(partition_path, dataset_train, partitions)
+        artifacts.append(partition_path)
     assert partitions is not None
-    dump_partition(
-        experiment_cfg.partitions_output_directory / 'train_partitions.csv',
-        dataset_train,
-        partitions
-    )
+    partition_path = experiment_cfg.partitions_output_directory / 'train_partitions.csv'
+    dump_partition(partition_path, dataset_train, partitions)
+    artifacts.append(partition_path)
 
     # 6. Dataset postprocessing (required to remap targets in some experiments)
     if experiment_cfg.dataset.postprocessing:
@@ -173,6 +195,13 @@ def load_engine(
         load_last_checkpoint(
             list(training_engine.clients.values()),
             Path(experiment_cfg.checkpoint_output_directory)
+        )
+
+    if components is not None:
+        from dengine.run_manifest import write_run_manifest
+
+        write_run_manifest(
+            args, experiment_cfg, network_graph, dataset_train, dataset_test, partitions, artifacts, components
         )
 
     return training_engine
