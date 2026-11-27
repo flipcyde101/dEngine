@@ -89,9 +89,11 @@ def test_cross_entropy_is_stable_for_shifted_logits():
     assert mean_cross_entropy(np.array([4, 9]), equal) == pytest.approx(np.log(10))
 
 
-def test_smoke_runs_normal_entrypoint_and_preserves_outputs(tmp_path):
+def test_smoke_runs_normal_entrypoint_and_preserves_outputs(tmp_path, monkeypatch):
     from examples.MoERobustness.run import main
 
+    monkeypatch.setenv("DENGINE_INPUT_ROOTS", str(tmp_path))
+    monkeypatch.setenv("DENGINE_OUTPUT_ROOTS", str(tmp_path))
     out = tmp_path / "attempt"
     argv = ["--mode", "smoke", "--arch", "moe", "--data", "proxy", "--seed", "11",
             "--dataset-dir", str(tmp_path / "absent"), "--output-dir", str(out)]
