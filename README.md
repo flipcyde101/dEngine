@@ -112,6 +112,23 @@ dengine-simulate --config <your_config.yml> --gpu 0 --output_directory logs/
 
 Run `dengine-simulate --help` (or `python main.py --help` from an example) to see all CLI options, including `--sanity_check` to validate a config without running it, `--seed`, `--dataset_directory`, and `--resume_checkpoints`.
 
+### Record and verify a run setup
+
+Pass `--run_manifest` to `dengine-simulate` or set `SimulationArguments.run_manifest=True` in Python. Choose a fresh output directory for the experiment name. After the engine loads successfully, dEngine writes `run-manifest.json` beside the resolved `config.yaml`. The manifest describes the prepared setup, while training and its outputs follow the normal engine path.
+
+The manifest records effective configuration and seed, dEngine code and runtime versions, and source fingerprints for the components the engine loads. It also records training and test tensor fingerprints, graph node order and topology, and checksums for saved graph and partition files. The existing partition CSVs describe class counts. The new `partitioning/indices.json` records each client's ordered train and validation indices. The manifest uses paths relative to the run directory.
+
+From the repository root, run this two-client example with synthetic images and one communication round. It uses no dataset downloads.
+
+```sh
+python -m examples.RunManifest.run --config examples/RunManifest/config.yml --output_directory logs/manifest-demo/original --gpu -1 --run_manifest
+python -m dengine.run_manifest logs/manifest-demo/original/tiny-manifest/run-manifest.json
+python -m examples.RunManifest.run --config logs/manifest-demo/original/tiny-manifest/config.yaml --output_directory logs/manifest-demo/replay --gpu -1 --run_manifest
+python -m dengine.run_manifest logs/manifest-demo/original/tiny-manifest/run-manifest.json --compare logs/manifest-demo/replay/tiny-manifest/run-manifest.json
+```
+
+The last command verifies both directories and checks that the recorded setups match. For your own replay, use the recorded resolved config and the same dataset inputs, runtime settings, and versions of any custom components and their dependencies. The comparison allows a different output root and excludes graph plots. Dataset hashes cover loaded tensors before per-example transforms. A complete comparison requires fingerprints for both datasets and the directly loaded components. Use a new output root each time you repeat the example.
+
 More examples:
 
 - [`examples/MNIST`](./examples/MNIST): minimal example of decentralized training on MNIST.
