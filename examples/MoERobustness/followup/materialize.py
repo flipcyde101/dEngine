@@ -7,6 +7,8 @@ from pathlib import Path
 import struct
 import urllib.request
 
+from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file
+
 from .design import SPEC, digest, read_json, write_json
 
 
@@ -23,7 +25,7 @@ def study_inputs(source=None):
             with urllib.request.urlopen(meta["url"], timeout=60) as response:
                 packed = response.read(meta["bytes"] + 1)
         else:
-            packed = (source / meta["name"]).read_bytes()
+            packed = contained_file(source, meta["name"]).read_bytes()
         if len(packed) != meta["bytes"] or digest(packed) != meta["sha256"]:
             raise ValueError(f"Unexpected public dataset bytes for {meta['name']}")
         raw = gzip.decompress(packed)
@@ -56,9 +58,9 @@ def materialize(cohort, out, source=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("cohort", type=Path)
-    parser.add_argument("out", type=Path)
-    parser.add_argument("--source", type=Path)
+    parser.add_argument("cohort", type=cli_input_path)
+    parser.add_argument("out", type=cli_output_path)
+    parser.add_argument("--source", type=cli_input_path)
     args = parser.parse_args()
     materialize(read_json(args.cohort), args.out, args.source)
 
