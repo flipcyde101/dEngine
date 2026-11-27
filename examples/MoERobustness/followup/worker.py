@@ -2,14 +2,15 @@
 
 import argparse
 from datetime import datetime, timezone
-from pathlib import Path
 import platform
 import sys
 
 import torch
 import torchvision
 
-from ..lab.worker import print_bundle, run_process
+from _dengine_cli_paths import cli_input_path, cli_output_path
+
+from ..lab.worker import WorkerTask, print_bundle, run_process
 from ..run import source_state
 from .design import case_id, file_digest, read_json, starts_for, write_json
 from .verify import verify_start
@@ -42,8 +43,10 @@ def run_worker(args):
         if args.slots != sorted(set(args.slots)) or any(slot not in starts for slot in args.slots):
             raise ValueError("Invalid match slot")
         if args.kind == "qualify":
-            check = run_process("focused-tests", [sys.executable, "-B", "-m", "pytest", "-q",
-                                                  "-p", "no:cacheprovider", "tests/test_moe_followup.py"], 180)
+            check = run_process(
+                "focused-tests", WorkerTask.TESTS,
+                ["-q", "-p", "no:cacheprovider", "tests/test_moe_followup.py"], 180,
+            )
             status["processes"].append(check)
             if check["native_exit"] != 0:
                 raise RuntimeError("Worker checks failed")
@@ -52,8 +55,8 @@ def run_worker(args):
             start = starts[slot]
             for arm in start["order"]:
                 key = case_id(cohort, slot, arm)
-                receipt = run_process(key, [sys.executable, "-Bu", "-m", "examples.MoERobustness.followup.fit",
-                                            str(args.directory), args.cohort_sha, str(slot), arm, str(cases / key)],
+                receipt = run_process(key, WorkerTask.FOLLOWUP,
+                                      ["--", str(args.directory), args.cohort_sha, str(slot), arm, str(cases / key)],
                                       100, start["model_seed"])
                 status["processes"].append(receipt)
                 if receipt["native_exit"] != 0:
@@ -75,9 +78,9 @@ def run_worker(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path)
+    parser.add_argument("directory", type=cli_input_path)
     parser.add_argument("cohort_sha")
-    parser.add_argument("output", type=Path)
+    parser.add_argument("output", type=cli_output_path)
     parser.add_argument("--kind", choices=("study", "qualify"), required=True)
     parser.add_argument("--slots", nargs="+", type=int, required=True)
     return run_worker(parser.parse_args())
