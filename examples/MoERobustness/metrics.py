@@ -9,6 +9,8 @@ import torch
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
+from _dengine_cli_paths import write_output_text
+
 from dengine.callbacks.callback import PeriodicCallback
 from dengine.callbacks.decorators import register_callback
 from dengine.training_strategies.decorators import register_local_training
@@ -20,9 +22,9 @@ from .data import SPEC
 from .models import balance_loss
 
 
-def write_json(path, record):
-    path.write_text(json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n",
-                    encoding="utf-8")
+def write_json(path, record, *, exclusive=False):
+    text = json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    write_output_text(path, text, exclusive=exclusive)
 
 
 def class_metrics(targets, predicted):
