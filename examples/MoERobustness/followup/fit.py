@@ -11,6 +11,8 @@ import torch
 from torch import nn
 from torch.utils.data import Sampler
 
+from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file
+
 from dengine import load_experiment_from_yamls
 from dengine.bin.args_parser import SimulationArguments, VerbosityLevel
 from dengine.bin.simulation import load_engine
@@ -97,7 +99,8 @@ def subset(directory):
     if {file.name for file in directory.iterdir()} != {"cohort.json", "images.bin", "labels.bin"}:
         raise ValueError("Require only the reviewed development input files")
     meta = read_json(directory / "cohort.json")
-    raw_images, raw_labels = (directory / "images.bin").read_bytes(), (directory / "labels.bin").read_bytes()
+    raw_images = contained_file(directory, "images.bin").read_bytes()
+    raw_labels = contained_file(directory, "labels.bin").read_bytes()
     if digest(raw_images) != meta["images_sha256"] or digest(raw_labels) != meta["labels_sha256"]:
         raise ValueError("Development inputs differ from the frozen cohort")
     labels = np.frombuffer(raw_labels, dtype=np.uint8)
@@ -207,11 +210,11 @@ def fit(directory, cohort_sha, slot, arm, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path)
+    parser.add_argument("directory", type=cli_input_path)
     parser.add_argument("cohort_sha")
     parser.add_argument("slot", type=int)
     parser.add_argument("arm", choices=ARMS)
-    parser.add_argument("out", type=Path)
+    parser.add_argument("out", type=cli_output_path)
     args = parser.parse_args()
     args.out.mkdir(exist_ok=False, parents=True)
     fit(args.directory, args.cohort_sha, args.slot, args.arm, args.out)
