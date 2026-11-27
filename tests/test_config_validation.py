@@ -105,10 +105,15 @@ def test_environment_values_are_checked_without_echoing_them(tmp_path, monkeypat
     assert "Configuration schema is valid" in capsys.readouterr().out
 
 
-def test_malformed_override_is_a_usage_error(capsys):
+@pytest.mark.parametrize(
+    ("args", "diagnostic"),
+    [([], "--config"),
+     (["--config", str(EXAMPLE), "--set", "not-a-key-value"], "KEY=VALUE")],
+)
+def test_invalid_invocation_is_a_usage_error(capsys, args, diagnostic):
     from dengine.bin.validate_config import main
 
     with pytest.raises(SystemExit) as error:
-        main(["--config", str(EXAMPLE), "--set", "not-a-key-value"])
+        main(args)
     assert error.value.code == 2
-    assert "KEY=VALUE" in capsys.readouterr().err
+    assert diagnostic in capsys.readouterr().err
