@@ -3,13 +3,15 @@
 import argparse
 import base64
 from datetime import datetime, timezone
+from enum import Enum
 import gzip
 import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import platform
+import re
+import stat
 import subprocess
 import sys
 import tarfile
@@ -19,6 +21,8 @@ import numpy as np
 import torch
 import torchvision
 
+from _dengine_cli_paths import cli_input_path, cli_output_path
+
 from ..data import EXPECTED_COHORT, SPEC, fingerprints, make_cohort, read_mnist
 from ..metrics import write_json
 from ..summarize import summarize
@@ -26,13 +30,22 @@ from ..summarize import summarize
 ARMS = (("dense", "clean"), ("dense", "proxy"), ("moe", "clean"), ("moe", "proxy"))
 
 
-def run_process(label, argv, timeout, seed=None):
+class WorkerTask(Enum):
+    PILOT = "examples.MoERobustness.run"
+    FOLLOWUP = "examples.MoERobustness.followup.fit"
+    TESTS = "pytest"
+
+
+def run_process(label, task: WorkerTask, args, timeout, seed=None):
+    if not isinstance(task, WorkerTask):
+        raise TypeError("Invalid worker task")
     env = {**os.environ, "PYTHONHASHSEED": str(seed if seed is not None else 11)}
     print(f"DENGINE_START {label} {datetime.now(timezone.utc).isoformat()}", flush=True)
     start = time.monotonic()
     timed_out = False
     try:
-        result = subprocess.run(argv, env=env, timeout=timeout, check=False)
+        argv = [sys.executable, "-Bu", "-m", task.value, *args]
+        result = subprocess.run(argv, env=env, timeout=timeout, check=False, shell=False)
         code = result.returncode
     except subprocess.TimeoutExpired:
         code = None
@@ -47,26 +60,37 @@ def run_process(label, argv, timeout, seed=None):
 def cell(mode, seed, arch, condition, directory, dataset):
     return run_process(
         f"{mode}-{seed}-{arch}-{condition}-{directory.name}",
-        [sys.executable, "-Bu", "-m", "examples.MoERobustness.run", "--mode", mode,
-         "--arch", arch, "--data", condition, "--seed", str(seed), "--dataset-dir",
-         str(dataset), "--output-dir", str(directory)],
+        WorkerTask.PILOT,
+        [f"--mode={mode}", f"--arch={arch}", f"--data={condition}", f"--seed={seed}",
+         f"--dataset-dir={dataset}", f"--output-dir={directory}"],
         timeout=330 if mode == "pilot" else 120, seed=seed,
     )
 
 
 def compressed_bundle(out):
+    out = out.resolve(strict=True)
     buffer = io.BytesIO()
     with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as gzf:
         with tarfile.open(fileobj=gzf, mode="w|") as archive:
             for path in sorted(out.rglob("*")):
-                if path.is_symlink():
-                    raise ValueError("Unexpected symlink in experiment output")
-                if not path.is_file():
+                resolved = path.resolve(strict=True)
+                if resolved != path or not resolved.is_relative_to(out):
+                    raise ValueError("Unexpected linked path in experiment output")
+                if resolved.is_dir():
                     continue
-                info = archive.gettarinfo(str(path), arcname=path.relative_to(out).as_posix())
-                info.uid = info.gid = info.mtime = 0
-                info.uname = info.gname = ""
-                with path.open("rb") as handle:
+                relative = resolved.relative_to(out)
+                if not all(re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", part) and not part.endswith(".")
+                           for part in relative.parts):
+                    raise ValueError("Unexpected archive member name")
+                if not resolved.is_file():
+                    raise ValueError("Unexpected non-regular experiment output")
+                with resolved.open("rb") as handle:
+                    member = os.fstat(handle.fileno())
+                    if not stat.S_ISREG(member.st_mode):
+                        raise ValueError("Unexpected non-regular archive member")
+                    info = tarfile.TarInfo(relative.as_posix())
+                    info.size = member.st_size
+                    info.mode = 0o644
                     archive.addfile(info, handle)
     return buffer.getvalue()
 
@@ -102,10 +126,8 @@ def canary(out, dataset, status):
     }
     receipt = run_process(
         "focused-pytest",
-        [
-            sys.executable, "-B", "-m", "pytest", "-q", "-p",
-            "no:cacheprovider", "tests/test_moe_robustness.py",
-        ],
+        WorkerTask.TESTS,
+        ["-q", "-p", "no:cacheprovider", "tests/test_moe_robustness.py"],
         180,
     )
     status["processes"].append(receipt)
@@ -136,8 +158,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--job", required=True, choices=("canary", "pilot"))
     parser.add_argument("--seed", type=int, choices=SPEC["seeds"])
-    parser.add_argument("--dataset-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--dataset-dir", type=cli_input_path, required=True)
+    parser.add_argument("--output-dir", type=cli_output_path, required=True)
     args = parser.parse_args(argv)
     if (args.job == "pilot") != (args.seed is not None):
         parser.error("Provide a seed for a pilot job only")
