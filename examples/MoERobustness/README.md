@@ -22,7 +22,12 @@ Use `windows.lock` for Windows. Smoke mode uses a generated fixture. It qualifie
 
 ```text
 python -m examples.MoERobustness.run --mode pilot --arch moe --data proxy --seed 11 --dataset-dir ../mnist --output-dir ../results/seed-11-moe-proxy
-python -m examples.MoERobustness.summarize ../results ../paired-results.json
+```
+
+For summarization, set `DENGINE_INPUT_ROOTS` to the results directory before running the command below. Keep `DENGINE_OUTPUT_ROOTS` set to the results directory.
+
+```text
+python -m examples.MoERobustness.summarize ../results ../results/paired-results.json
 ```
 
 The summary reports missing or invalid cells. The primary effect is the dense model's class-4 F1 loss minus the MoE's class-4 F1 loss, both measured against each architecture's own clean-trained control. Display each paired effect. Interpret the median and range as exploratory observations conditional on this dataset and these implementations. Report feasibility failures before interpreting the comparison.
