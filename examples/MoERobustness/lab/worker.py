@@ -21,7 +21,7 @@ import numpy as np
 import torch
 import torchvision
 
-from _dengine_cli_paths import cli_input_path, cli_output_path
+from _dengine_cli_paths import cli_input_path, cli_output_path, create_output_directory
 
 from ..data import EXPECTED_COHORT, SPEC, fingerprints, make_cohort, read_mnist
 from ..metrics import write_json
@@ -31,9 +31,13 @@ ARMS = (("dense", "clean"), ("dense", "proxy"), ("moe", "clean"), ("moe", "proxy
 
 
 class WorkerTask(Enum):
-    PILOT = "examples.MoERobustness.run"
-    FOLLOWUP = "examples.MoERobustness.followup.fit"
-    TESTS = "pytest"
+    PILOT = "pilot"
+    FOLLOWUP = "followup"
+    PILOT_TESTS = "pilot-tests"
+    FOLLOWUP_TESTS = "followup-tests"
+
+
+WORKER_MODULE = "examples.MoERobustness.lab.invoke"
 
 
 def run_process(label, task: WorkerTask, args, timeout, seed=None):
@@ -44,8 +48,20 @@ def run_process(label, task: WorkerTask, args, timeout, seed=None):
     start = time.monotonic()
     timed_out = False
     try:
-        argv = [sys.executable, "-Bu", "-m", task.value, *args]
-        result = subprocess.run(argv, env=env, timeout=timeout, check=False, shell=False)
+        if task is WorkerTask.PILOT:
+            command = [sys.executable, "-Bu", "-m", WORKER_MODULE, "pilot"]
+            payload = json.dumps(args).encode()
+        elif task is WorkerTask.FOLLOWUP:
+            command = [sys.executable, "-Bu", "-m", WORKER_MODULE, "followup"]
+            payload = json.dumps(args).encode()
+        else:
+            if args:
+                raise ValueError("Test workers do not accept custom arguments")
+            test_file = ("tests/test_moe_robustness.py" if task is WorkerTask.PILOT_TESTS
+                         else "tests/test_moe_followup.py")
+            command = [sys.executable, "-Bu", "-m", "pytest", "-q", "-p", "no:cacheprovider", test_file]
+            payload = b""
+        result = subprocess.run(command, input=payload, env=env, timeout=timeout, check=False, shell=False)
         code = result.returncode
     except subprocess.TimeoutExpired:
         code = None
@@ -126,8 +142,8 @@ def canary(out, dataset, status):
     }
     receipt = run_process(
         "focused-pytest",
-        WorkerTask.TESTS,
-        ["-q", "-p", "no:cacheprovider", "tests/test_moe_robustness.py"],
+        WorkerTask.PILOT_TESTS,
+        [],
         180,
     )
     status["processes"].append(receipt)
@@ -163,8 +179,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if (args.job == "pilot") != (args.seed is not None):
         parser.error("Provide a seed for a pilot job only")
-    out = args.output_dir
-    out.mkdir(parents=True, exist_ok=False)
+    out = create_output_directory(args.output_dir)
     status = {
         "job": args.job, "seed": args.seed, "python": platform.python_version(),
         "machine": platform.machine(), "torch": torch.__version__,
