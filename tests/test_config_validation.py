@@ -17,7 +17,7 @@ def test_module_validates_from_a_custom_project_without_importing_it(tmp_path):
         "raise RuntimeError('Local project code was imported')\n", encoding="utf-8"
     )
     output = tmp_path / "must-not-write"
-    environment = dict(os.environ, PYTHONPATH=str(REPOSITORY))
+    environment = dict(os.environ, PYTHONPATH=str(REPOSITORY), DENGINE_INPUT_ROOTS=str(REPOSITORY))
     result = subprocess.run(
         [sys.executable, "-B", "-m", "dengine.bin.validate_config",
          "--config", str(EXAMPLE), "--output_directory", str(output)],
@@ -28,6 +28,11 @@ def test_module_validates_from_a_custom_project_without_importing_it(tmp_path):
     assert "Configuration schema is valid" in result.stdout
     assert not output.exists()
     assert sorted(item.name for item in project.iterdir()) == ["__init__.py"]
+
+
+@pytest.fixture(autouse=True)
+def config_workspaces(tmp_path, monkeypatch):
+    monkeypatch.setenv("DENGINE_INPUT_ROOTS", os.pathsep.join((str(REPOSITORY), str(tmp_path))))
 
 
 def test_layers_and_overrides_use_the_simulation_schema(tmp_path, capsys):
@@ -62,6 +67,18 @@ def test_missing_config_reports_the_requested_file(tmp_path, capsys):
     missing = tmp_path / "missing.yml"
     assert main(["--config", str(missing)]) == 1
     assert "missing.yml" in capsys.readouterr().err
+
+
+def test_installed_config_name_still_works_with_an_external_input_root(tmp_path, monkeypatch, capsys):
+    from dengine.bin import args_parser
+    from dengine.bin.validate_config import main
+
+    workspace = tmp_path / "inputs"
+    workspace.mkdir()
+    monkeypatch.setenv("DENGINE_INPUT_ROOTS", str(workspace))
+    monkeypatch.setattr(args_parser, "get_config", lambda name: EXAMPLE if name == "core.yml" else workspace)
+    assert main(["--config", "core.yml"]) == 0
+    assert "Configuration schema is valid" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
