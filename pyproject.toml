@@ -40,6 +40,9 @@ full = [
     "transformers"
 ]
 
+[tool.setuptools]
+py-modules = ["_dengine_cli_paths"]
+
 [tool.setuptools.packages.find]
 include = ["dengine*"]
 
