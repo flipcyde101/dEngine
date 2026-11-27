@@ -48,6 +48,12 @@ def class_metrics(targets, predicted):
     }
 
 
+def mean_cross_entropy(targets, logits):
+    work = logits.astype(np.float64)
+    return float(np.mean(np.logaddexp.reduce(work, axis=1)
+                         - work[np.arange(len(targets)), targets]))
+
+
 @torch.inference_mode()
 def evaluate(model, dataset):
     was_training = model.training
@@ -123,6 +129,7 @@ class PilotMetrics(PeriodicCallback):
         trainer = self.client.local_training_engine
         y, logits, routes = evaluate(self.client.model, trainer.validation_data)
         self.validation = class_metrics(y, logits.argmax(axis=1))
+        self.validation["cross_entropy"] = mean_cross_entropy(y, logits)
         self.validation["route_counts"] = {
             "all": routing_counts(routes), "digit_4": routing_counts(routes[y == 4]),
             "digit_9": routing_counts(routes[y == 9]),
@@ -145,6 +152,7 @@ class PilotMetrics(PeriodicCallback):
         labels, logits, routes = output["labels"], output["logits"], output["routes"]
         predicted = logits.argmax(axis=1)
         self.test = class_metrics(labels, predicted)
+        self.test["cross_entropy"] = mean_cross_entropy(labels, logits)
         self.test["route_counts"] = {
             "all": routing_counts(routes), "digit_4": routing_counts(routes[labels == 4]),
             "digit_9": routing_counts(routes[labels == 9]),

@@ -4,12 +4,14 @@ import argparse
 from datetime import datetime, timezone
 from functools import lru_cache
 from importlib.metadata import distributions
+import json
 import os
 from pathlib import Path
 import platform
 import subprocess
 import sys
 import time
+from uuid import uuid4
 
 import numpy as np
 import torch
@@ -22,8 +24,9 @@ from dengine.dataset.decorators import register_dataset
 from dengine.partitioning import TYPE_DATASET_PARTITIONING
 from dengine.partitioning.decorators import register_partitioning
 
-from .data import SPEC, SPEC_PATH, array_digest, digest, fixture, make_cohort, read_mnist
-from .metrics import PilotMetrics, evaluate, routing_counts, write_json
+from .data import (COHORT_PATH, EXPECTED_COHORT, SPEC, SPEC_PATH, array_digest, digest,
+                   fingerprints, fixture, make_cohort, read_mnist)
+from .metrics import PilotMetrics, evaluate, mean_cross_entropy, routing_counts, write_json
 from .models import DenseDigitClassifier, SparseDigitClassifier
 from .progress import Progress
 
@@ -108,6 +111,9 @@ def run_cell(args, out, progress):
     torch.set_num_threads(SPEC["torch_cpu_threads"])
     torch.use_deterministic_algorithms(True)
     cohort, test_pixels, test_labels = study_inputs(args.mode, args.dataset_dir)
+    observed_cohort = fingerprints(cohort, test_pixels, test_labels)
+    if args.mode == "pilot" and observed_cohort != EXPECTED_COHORT:
+        raise ValueError("Pilot inputs differ from the frozen cohort")
     train_size = len(cohort.train_ids)
     epochs = 1 if args.mode == "smoke" else SPEC["epochs"]
     model_class = DenseDigitClassifier if args.arch == "dense" else SparseDigitClassifier
@@ -143,6 +149,8 @@ def run_cell(args, out, progress):
     model = client.model
     initial = {key: array_digest(value.detach().numpy())
                for key, value in model.state_dict().items() if key.startswith(("features.", "head."))}
+    initial_y, initial_logits, _ = evaluate(model, client.local_training_engine.validation_data)
+    initial_loss = mean_cross_entropy(initial_y, initial_logits)
     progress.update(2, "training and validation")
     engine.run()
 
@@ -157,19 +165,12 @@ def run_cell(args, out, progress):
         "train": {"examples": train_size, "modified_input_count": int(changed.sum()),
                   "inputs_sha256": array_digest(pixels[:train_size])},
         "validation": metrics.validation, "test": metrics.test,
+        "initial_validation": {"cross_entropy": initial_loss},
         "diagnostic": {"assignment_counts": counts, "examples": len(cohort.pairs)},
         "model": {"parameter_count": sum(p.numel() for p in model.parameters()),
                   "active_macs_per_image": total_macs + (4 * 64 if args.arch == "moe" else 0),
                   "shared_initial_weight_digests": initial},
-        "provenance": {
-            "train_ids_sha256": array_digest(cohort.train_ids),
-            "val_ids_sha256": array_digest(cohort.val_ids),
-            "train_val_labels_sha256": array_digest(cohort.labels),
-            "validation_pixels_sha256": array_digest(pixels[train_size:]),
-            "test_pixels_sha256": array_digest(test_pixels),
-            "test_labels_sha256": array_digest(test_labels),
-            "proxy_pairs_sha256": array_digest(cohort.pairs),
-        },
+        "provenance": observed_cohort,
     }
     write_json(out / "summary.json", report)
     np.savez_compressed(out / "cohort.npz", train_ids=cohort.train_ids,
@@ -201,11 +202,15 @@ def main(argv=None):
         "schema": 1, "study": SPEC["study"], "mode": args.mode, "architecture": args.arch,
         "data_condition": args.data, "seed": args.seed, "protocol_sha256": digest(SPEC_PATH.read_bytes()),
         "started_utc": datetime.now(timezone.utc).isoformat(), "status": "running",
+        "attempt_id": uuid4().hex, "cohort_protocol_sha256": digest(COHORT_PATH.read_bytes()),
     }
     write_json(out / "manifest.json", facts)
     try:
         with Progress(f"{args.mode}/{args.seed}/{args.arch}/{args.data}") as progress:
             facts["source"] = source_state(args.mode)
+            run_key = [facts["source"], facts["protocol_sha256"], facts["cohort_protocol_sha256"],
+                       args.mode, args.seed, args.arch, args.data]
+            facts["run_id"] = digest(json.dumps(run_key, sort_keys=True).encode("utf-8"))
             run_cell(args, out, progress)
             facts.update({
                 "status": "complete", "environment": environment(), "native_exit": 0,

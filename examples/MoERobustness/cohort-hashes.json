@@ -1,0 +1,11 @@
+{
+  "train_ids_sha256": "cd65561ba996a437a6406daffe3b66635d75b4f1ee40bc3e7d2e579dd1eba1a0",
+  "val_ids_sha256": "d93852a8af3715faaece093c9d6da7e9b9b9289d241580756b74e9264cc8c4a2",
+  "train_val_labels_sha256": "d39a5ad38d2b9d6af9f32a039d546ca4d435e13a925113b7a1694a7374e22e7e",
+  "validation_pixels_sha256": "c0598b3c81840aca6a77f993b767c875f362da8b8ec5cc349c0a956056424d43",
+  "test_pixels_sha256": "335fe471e6847eb0827e43da576ad3235032464f8706e8b7d6dd0fd5d0948bee",
+  "test_labels_sha256": "05f306177bb74b39bbb0394bd6c2351cf189d166b74cf9da5d6028bdd1ab41a4",
+  "proxy_pairs_sha256": "696f708c14343e69d2f8c91096b00a327b7fc453d1121523ee64cbf2dafe0514",
+  "train_clean_sha256": "2d9018d54db69d59975e1f94763e2bf47f9aea54d41ddff46bd5dba15832ba47",
+  "train_proxy_sha256": "ab14efd5de707eb6269b97a7aaaff4921946ec9e050e9d8d825f32fefd35fe82"
+}

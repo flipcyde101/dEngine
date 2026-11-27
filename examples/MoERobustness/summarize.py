@@ -8,8 +8,8 @@ import sys
 
 import numpy as np
 
-from .data import SPEC, SPEC_PATH, digest
-from .metrics import class_metrics, write_json
+from .data import COHORT_PATH, EXPECTED_COHORT, SPEC, SPEC_PATH, array_digest, digest
+from .metrics import class_metrics, mean_cross_entropy, write_json
 
 CELLS = {("dense", "clean"), ("dense", "proxy"), ("moe", "clean"), ("moe", "proxy")}
 
@@ -26,6 +26,8 @@ def verify_arm(directory, manifest):
         raise ValueError(f"Incomplete cell at {directory.name}")
     if manifest["source"]["dirty"] or manifest["protocol_sha256"] != digest(SPEC_PATH.read_bytes()):
         raise ValueError("Source or protocol differs")
+    if manifest["cohort_protocol_sha256"] != digest(COHORT_PATH.read_bytes()):
+        raise ValueError("The cohort lock differs")
     files = manifest["files"]
     required = {"cohort.npz", "metrics.jsonl", "predictions.npz", "summary.json", "weights.npz",
                 "engine/config.yaml"}
@@ -36,6 +38,11 @@ def verify_arm(directory, manifest):
         if not file.is_relative_to(directory.resolve()) or digest(file.read_bytes()) != expected:
             raise ValueError(f"Artifact hash mismatch at {directory.name}/{name}")
     metrics = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    if metrics["provenance"] != EXPECTED_COHORT:
+        raise ValueError("The data differ from the frozen cohort")
+    condition = manifest["data_condition"]
+    if metrics["train"]["inputs_sha256"] != EXPECTED_COHORT[f"train_{condition}_sha256"]:
+        raise ValueError("The input digest differs from the frozen arm")
     with np.load(directory / "predictions.npz", allow_pickle=False) as predictions:
         result = {key: predictions[key] for key in predictions.files}
     if not np.array_equal(result["test_ids"], np.arange(10000)):
@@ -44,6 +51,9 @@ def verify_arm(directory, manifest):
             or not np.array_equal(result["logits"].argmax(axis=1), result["predicted"])):
         raise ValueError("Invalid logit or prediction arrays")
     recalculated = class_metrics(result["labels"], result["predicted"])
+    recalculated["cross_entropy"] = mean_cross_entropy(result["labels"], result["logits"])
+    if array_digest(result["labels"].astype(np.uint8)) != EXPECTED_COHORT["test_labels_sha256"]:
+        raise ValueError("Test label array differs from the audited MNIST sequence")
     if any(value != metrics["test"][key] for key, value in recalculated.items()):
         raise ValueError("Stored test metrics differ from the prediction arrays")
     epochs = [json.loads(line) for line in (directory / "metrics.jsonl").read_text(
