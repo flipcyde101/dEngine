@@ -8,7 +8,7 @@ import time
 import numpy as np
 import torch
 
-from _dengine_cli_paths import cli_input_path, cli_output_path
+from _dengine_cli_paths import cli_input_path, cli_output_path, create_output_directory
 
 from ..data import array_digest
 from ..metrics import class_metrics, evaluate, mean_cross_entropy, routing_counts
@@ -243,7 +243,7 @@ def score(lab, sealed_dir, out):
     torch.set_num_threads(2)
     torch.use_deterministic_algorithms(True)
     dataset = tensor_dataset(images, labels)
-    out.mkdir(parents=True, exist_ok=False)
+    out = create_output_directory(out)
     cases, predicted, routes, report = [], [], [], []
     started = time.monotonic()
     for (cohort, slot), (root, records) in sorted(matrix.items()):
