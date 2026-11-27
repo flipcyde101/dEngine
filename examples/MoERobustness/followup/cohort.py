@@ -1,9 +1,9 @@
 """Create frozen disjoint evaluation and training inputs from pinned MNIST."""
 
 import argparse
-from pathlib import Path
-
 import numpy as np
+
+from _dengine_cli_paths import cli_input_path, cli_output_path
 
 from ..data import array_digest, read_mnist
 from .design import PROTOCOL_PATH, SPEC, derive_seed, digest, file_digest, starts_for, write_json
@@ -119,10 +119,10 @@ def seal(mnist, pilot_cohort, pilot_cohort_sha256, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mnist", type=Path)
-    parser.add_argument("pilot_cohort", type=Path)
+    parser.add_argument("mnist", type=cli_input_path)
+    parser.add_argument("pilot_cohort", type=cli_input_path)
     parser.add_argument("pilot_cohort_sha256")
-    parser.add_argument("out", type=Path)
+    parser.add_argument("out", type=cli_output_path)
     args = parser.parse_args()
     seal(args.mnist, args.pilot_cohort, args.pilot_cohort_sha256, args.out)
 
