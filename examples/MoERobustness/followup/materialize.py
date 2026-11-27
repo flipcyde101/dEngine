@@ -7,7 +7,7 @@ from pathlib import Path
 import struct
 import urllib.request
 
-from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file
+from _dengine_cli_paths import cli_input_path, cli_output_path, contained_file, create_output_directory
 
 from .design import SPEC, digest, read_json, write_json
 
@@ -48,7 +48,7 @@ def materialize(cohort, out, source=None):
     targets = bytes(labels[i] for i in selected)
     if digest(subset) != cohort["images_sha256"] or digest(targets) != cohort["labels_sha256"]:
         raise ValueError("Selected inputs do not match the reviewed fingerprints")
-    out.mkdir(parents=True, exist_ok=False)
+    out = create_output_directory(out)
     for name, data in (("images.bin", subset), ("labels.bin", targets)):
         with (out / name).open("xb") as handle:
             handle.write(data)
