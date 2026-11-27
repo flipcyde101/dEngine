@@ -9,6 +9,8 @@ import struct
 
 import numpy as np
 
+from _dengine_cli_paths import contained_file
+
 SPEC_PATH = Path(__file__).with_name("protocol.json")
 SPEC = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
 COHORT_PATH = Path(__file__).with_name("cohort-hashes.json")
@@ -116,7 +118,7 @@ def make_cohort(pixels, labels, train_per_digit=None, val_per_digit=None):
 def read_mnist(path):
     arrays = []
     for index, source in enumerate(SPEC["dataset"]):
-        file = path / source["name"]
+        file = contained_file(path, source["name"])
         if file.stat().st_size != source["bytes"]:
             raise ValueError(f"MNIST byte count mismatch: {file.name}")
         raw = file.read_bytes()
