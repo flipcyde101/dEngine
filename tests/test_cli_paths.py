@@ -1,5 +1,6 @@
 from argparse import ArgumentTypeError
 from io import BytesIO
+import json
 from os import pathsep
 import tarfile
 from types import SimpleNamespace
@@ -70,9 +71,10 @@ def test_workspace_worker_launch_uses_fixed_module(monkeypatch, tmp_path):
     source = tmp_path / "public inputs"
     assert worker.cell("smoke", 11, "moe", "proxy", destination, source)["native_exit"] == 0
     argv, settings = observed[0]
-    assert argv[:4] == [worker.sys.executable, "-Bu", "-m", "examples.MoERobustness.run"]
-    assert argv[-2:] == [f"--dataset-dir={source}", f"--output-dir={destination}"]
+    assert argv == [worker.sys.executable, "-Bu", "-m", "examples.MoERobustness.lab.invoke", "pilot"]
+    assert json.loads(settings["input"])[-2:] == [f"--dataset-dir={source}", f"--output-dir={destination}"]
     assert settings["shell"] is False
+    assert settings["check"] is False
     with pytest.raises(TypeError, match="Invalid worker task"):
         worker.run_process("unrecognized-task", None, [], 120)
     assert len(observed) == 1
