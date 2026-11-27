@@ -3,7 +3,7 @@
 import argparse
 import numpy as np
 
-from _dengine_cli_paths import cli_input_path, cli_output_path
+from _dengine_cli_paths import cli_input_path, cli_output_path, create_output_directory
 
 from ..data import array_digest, read_mnist
 from .design import PROTOCOL_PATH, SPEC, derive_seed, digest, file_digest, starts_for, write_json
@@ -94,7 +94,7 @@ def seal(mnist, pilot_cohort, pilot_cohort_sha256, out):
     pool = eligible_images(pixels, set(held.tolist()), original_test)
     if np.intersect1d(held, pool).size or used & set(held.tolist()):
         raise ValueError("Fresh evaluation IDs overlap an earlier use")
-    out.mkdir(parents=True, exist_ok=False)
+    out = create_output_directory(out)
     held_file = out / "sealed-evaluation.npz"
     with held_file.open("xb") as stream:
         np.savez_compressed(stream, ids=held, images=pixels[held], labels=labels[held])
