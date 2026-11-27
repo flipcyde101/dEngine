@@ -4,8 +4,10 @@ from pathlib import Path
 from random import randint
 from enum import Enum
 from dataclasses import dataclass, field
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
+from re import fullmatch
 
+from _dengine_cli_paths import cli_input_path
 from dengine.config.builtins import get_config
 
 
@@ -33,15 +35,24 @@ class SimulationArguments:
 def resolve_config_files(configs: List[str]) -> List[Path]:
     config_files = []
     for filename in configs:
-        path = Path(filename)
-        if path.is_file():
-            config_files.append(path)
-            continue
-        core_config = get_config(path.name)
-        if core_config.is_file():
-            config_files.append(core_config)
-            continue
-        raise ValueError(f'Not found: {path}')
+        workspace_error = None
+        try:
+            path = cli_input_path(filename)
+        except ArgumentTypeError as error:
+            workspace_error = error
+        else:
+            if path.is_file():
+                config_files.append(path)
+                continue
+        basename = Path(filename).name
+        if filename == basename and fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.ya?ml", basename):
+            core_config = get_config(basename)
+            if core_config.is_file():
+                config_files.append(core_config)
+                continue
+        if workspace_error is not None:
+            raise workspace_error
+        raise ValueError(f'Not found: {filename}')
     return config_files
 
 
