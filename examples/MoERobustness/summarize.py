@@ -2,7 +2,6 @@
 
 import argparse
 import json
-from pathlib import Path
 import statistics
 import sys
 
