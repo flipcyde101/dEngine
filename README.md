@@ -5,6 +5,34 @@
 
 It's built for researchers who want to iterate quickly on collaborative-learning algorithms (federated averaging, decentralized gossip averaging, and beyond) without re-implementing the simulation plumbing (network graphs, dataset partitioning, checkpointing, metrics) for every project.
 
+## Research tools in this fork
+
+This is a research fork of [dEngine](https://github.com/DecentralizedLearning/dEngine), a Python framework for decentralized learning. The fork adds four capabilities for recording, checking, and analyzing experiments.
+
+| Capability | What it does |
+| --- | --- |
+| Run manifests | Saves the effective configuration, seed, runtime versions, and fingerprints of inputs used to prepare a run. |
+| Replay and verification | Replays the synthetic example from its saved configuration and compares recorded setup fingerprints. |
+| Configuration validation | Checks a YAML configuration before datasets load or a simulation starts. |
+| Paired class reports | Turns saved study scores into per-digit F1 loss comparisons with descriptive uncertainty intervals. |
+
+### Try it from a source checkout
+
+Use Python 3.13 in a virtual environment, then run these commands from the repository root.
+
+```sh
+python -m pip install -e .
+dengine-validate --config examples/HelloWorld/config.yml
+python -m examples.RunManifest.run --config examples/RunManifest/config.yml --output_directory logs/manifest-demo/first --gpu -1 --run_manifest
+```
+
+The first dEngine command checks the config. The second runs one communication round with two clients and synthetic data, then leaves a manifest in the run directory. Use a fresh output path for each run. See [how to replay and compare the setup](#record-and-verify-a-run-setup).
+
+For the MNIST study, see the [paired report instructions](examples/MoERobustness/followup/README.md#paired-class-comparisons). The reporter reads saved study scores and writes JSON and Markdown to a fresh output directory. The class comparisons are exploratory. Digit 4 remains the study's primary outcome.
+
+> [!NOTE]
+> Manifest comparison verifies the recorded setup and available fingerprints. Matching manifests do not guarantee identical model results across machines.
+
 ## Why dEngine?
 
 - **Config-driven experiments.** Every experiment — graph topology, dataset, partitioning, client behavior, aggregation rule — is declared in YAML and validated with [Pydantic](https://docs.pydantic.dev/) via [OmegaConf](https://omegaconf.readthedocs.io/). Swap a topology or a training strategy by pointing to a different config, no code changes required.
