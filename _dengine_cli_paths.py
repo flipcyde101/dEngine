@@ -1,8 +1,8 @@
 """Limit command-line file access to directories chosen by the operator."""
 
 from argparse import ArgumentTypeError
-from os import environ, pathsep
-from os.path import abspath
+from os import environ, pathsep, sep
+from os.path import abspath, normcase, realpath
 from pathlib import Path
 
 
@@ -25,13 +25,15 @@ def _allowed_path(value, variable):
     if not any(candidate.is_relative_to(root) for root in [*roots, *canonical_roots]):
         raise ArgumentTypeError(f"Path is outside the approved workspace ({variable})")
     try:
-        path = candidate.resolve()
+        path = realpath(candidate)
     except (OSError, ValueError) as error:
         raise ArgumentTypeError("Could not resolve the supplied workspace path") from error
-    permits_root = variable == "DENGINE_INPUT_ROOTS"
-    if not any(path.is_relative_to(root) and (permits_root or path != root) for root in canonical_roots):
-        raise ArgumentTypeError(f"Path is outside the approved workspace ({variable})")
-    return path
+    normalized = normcase(path)
+    for root in canonical_roots:
+        approved = normcase(str(root))
+        if normalized.startswith(approved + sep) or (normalized == approved and variable == "DENGINE_INPUT_ROOTS"):
+            return Path(path)
+    raise ArgumentTypeError(f"Path is outside the approved workspace ({variable})")
 
 
 def cli_input_path(value):
@@ -46,6 +48,21 @@ def cli_output_path(value):
     if candidate.is_symlink():
         raise ArgumentTypeError("Output path must not be a symbolic link")
     return resolved
+
+
+def read_input_bytes(value):
+    """Read a regular input file within an approved workspace."""
+    path = cli_input_path(value)
+    if not path.is_file():
+        raise ValueError("Expected a regular input file in the approved workspace")
+    return path.read_bytes()
+
+
+def create_output_directory(value):
+    """Create a fresh directory within an approved workspace."""
+    path = cli_output_path(value)
+    path.mkdir(parents=True, exist_ok=False)
+    return path
 
 
 def contained_file(directory, name):
