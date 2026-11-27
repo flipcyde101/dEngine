@@ -1,0 +1,3 @@
+torch @ https://download-r2.pytorch.org/whl/cpu/torch-2.10.0%2Bcpu-cp313-cp313-win_amd64.whl#sha256=b719da5af01b59126ac13eefd6ba3dd12d002dc0e8e79b8b365e55267a8189d3
+torchvision @ https://download-r2.pytorch.org/whl/cpu/torchvision-0.25.0%2Bcpu-cp313-cp313-win_amd64.whl#sha256=783c8fc580bbfc159bff52f4f72cdd538e42b32956e70dffa42b940db114e151
+pytest
