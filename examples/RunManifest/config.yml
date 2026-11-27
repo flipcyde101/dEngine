@@ -1,0 +1,45 @@
+name: tiny-manifest
+seed: 417
+
+dataset:
+  train:
+    target: manifest_demo_images
+    arguments:
+      split: train
+  test:
+    target: manifest_demo_images
+    arguments:
+      split: test
+
+graph:
+  target: NXGraph
+  arguments:
+    nx_class: complete_graph
+    n: 2
+
+partitioning:
+  target: random_iid
+  arguments:
+    validation_percentage: 0.25
+
+scenario:
+  target: VanillaDecentralizedSynch
+  arguments:
+    common_init: true
+    max_communication_rounds: 1
+
+client:
+  target: DecAvgClient
+  arguments:
+    use_weighted_avg: true
+  local_model:
+    target: ManifestDemoClassifier
+  training_engine:
+    target: EngineWithoutEarlyStopping
+    arguments:
+      epochs: 1
+      optimizer: SGD
+      lr: 0.01
+      training_batch_size: 4
+      validation_batch_size: 4
+      verbose: false
