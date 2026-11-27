@@ -78,3 +78,19 @@ def test_workspace_worker_launch_uses_fixed_module(monkeypatch, tmp_path):
     with pytest.raises(TypeError, match="Invalid worker task"):
         worker.run_process("unrecognized-task", None, [], 120)
     assert len(observed) == 1
+
+
+def test_workspace_summary_creates_only_a_fresh_output(tmp_path, monkeypatch):
+    from examples.MoERobustness.summarize import main
+
+    monkeypatch.setenv("DENGINE_INPUT_ROOTS", str(tmp_path))
+    monkeypatch.setenv("DENGINE_OUTPUT_ROOTS", str(tmp_path))
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    output = tmp_path / "summary.json"
+    assert main([str(runs), str(output), "--seed", "11"]) == 2
+    assert json.loads(output.read_text(encoding="utf-8"))["complete"] is False
+    stored = output.read_bytes()
+    with pytest.raises(FileExistsError):
+        main([str(runs), str(output), "--seed", "11"])
+    assert output.read_bytes() == stored
